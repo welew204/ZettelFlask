@@ -14,9 +14,12 @@ on import, this returns a list of blog posts, each blog is a dict:
 
 
 import csv
+from typing import final
 import xml.etree.ElementTree as ET
 import os
 import sys
+
+import re
 
 from bs4 import BeautifulSoup
 import bs4 as BS
@@ -77,18 +80,19 @@ def convertXML(file):
 
 def just_text(file):
     # takes out new lines
-    soup = file.replace('\n', ' ')
-
+    no_nlines = re.sub('\n', ' ', file)
+    no_bullets = re.sub('\u00a0', ' - ', no_nlines)
+    no_nbsp = re.sub("&nbsp;", " ", no_bullets)
     """ soup = unicodedata.normalize("NFKD", soup) """
-    # makes a BeautifulSoup object >>> we lose SOME whitespace, especially around punctuation
-    soup = BS.BeautifulSoup(soup, 'html.parser')
+    # makes a BeautifulSoup object >>> we lose SOME whitespace, especially around punctuation (fixed by passing " " arg to get_text (telling it how to combine individual strings of html))
+    soup = BS.BeautifulSoup(no_nbsp, 'html.parser')
     # beautiful soup method that spits out just text >>>>> 
-    soup = soup.get_text()
-    # takes out bullet points (\xa0) and nbsp (\u00a0)
-    soup = soup.encode('ascii', 'ignore')
-    # get it back to being string (not a byte-string) 
-    soup = soup.decode()
-    return soup
+    gtext = soup.get_text(" ")
+    # takes out bullet points (\xa0) and nbsp (\u00a0) >>> NOT NEEDED??
+    #encoding_text = gtext.encode('ascii', 'ignore')
+    # get it back to being string (not a byte-string) >>>> NOT NEEDED?? 
+    #final = encoding_text.decode()
+    return gtext
 
 """with open(os.path.join(sys.path[0], inp_xml), 'r') as f:
     data = f.read() """

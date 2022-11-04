@@ -5,7 +5,7 @@ import json
 import difflib as dl
 import matplotlib
 
-from parsedXML.parse import just_text
+from NLP.parse import just_text
 # this fnc takes string in html or md and turns it into raw text
 
 from bs4 import BeautifulSoup
