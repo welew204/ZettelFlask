@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 import bs4 as BS
 
 import string
+from collections import defaultdict
 
 src_url = "/Users/williamhbelew/Hacking/ZetApp/ZettelApp/ZettelFlask/parsedXML/parsedBlogs.json"
 corpus = {}
@@ -19,11 +20,12 @@ corpus = {}
 ## this will be a list, to be handed into a TextCollection obj for similarity processing
 corpus_tc = []
 
+## for keeping track of stem::token incidence:
+post_dicts = []
+
 ## this will be a BoW of STEMs (all found, duplicates included)
 total_bow = []
 stopwords = nltk.corpus.stopwords.words('english')
-#punct = [",", ".", "(", ")", "?", ":", "*", "'", "--", "!", "'s", "n't", "''", "``", "+", "="]
-# ^ allllll the words
 
 with open(src_url, "r") as blogs_json:
     blogs = json.load(blogs_json)
@@ -41,11 +43,10 @@ with open(src_url, "r") as blogs_json:
 
         corpus[title] = obj
 
-    # do something with corpus (dict with each blog in raw text strings inside dict value (obj), access w/ key "text")
+    ## b is the TITLE of each post (str)
     for b in list(corpus.keys()):
-        ## TAKE OUT PUNCTUATION HERE!!!!!!!!! just replace w/ white space
         data = corpus[b]["text"]
-        #data = data.translate(str.maketrans('', '', string.punctuation))
+        
         tokens = nltk.word_tokenize(data)
 
         ## this takes care of digits and punctuation
@@ -63,50 +64,74 @@ with open(src_url, "r") as blogs_json:
             else:
                 cl_text.append(w)
 
+
         porter = nltk.PorterStemmer()
-        text_stems = [porter.stem(t) for t in cl_text]
-        # ^ this seems ALMOST right, but the raw text has some missing white-space, which is effing *some* shit up
 
-        ## MAKE THIS INTO A SET ... does that automagically keep track of dupes???
-        total_bow = total_bow + text_stems
+        d = defaultdict(list)
 
-        ## COMPARE THIS TO FreqDist from .probablity.FreqDist
-        fdist = nltk.FreqDist(text_stems)
+        for t in cl_text:
+            s = porter.stem(t)
+            d[s].append(t)
+        res = (b, d)
+        post_dicts.append(res)
+
+baggy = defaultdict(list)
+posts = defaultdict(list)
+
+final = {}
+
+for tup in post_dicts:
+## so each dty has a dict of stems, with each token
+    title, p_stems = tup
+    for s in p_stems.keys():
+        ## the tkns extracted from THIS post, that are repr by this stem (s)
+        tkns = p_stems[s]
+        ## this updates (extends) the list of tokens for each stem (for all posts)
+        baggy[s].extend(tkns)
+        ## this records the tokens found IN this post (stem will be clear bc it's the parent of this)
+        posts[s].append((title, tkns))
 
 
-        corpus[b]["text"] = text
-        corpus[b]["stems"] = text_stems
+for s in baggy.keys():
+    freq = len(baggy[s])
+    tokes = list(set(baggy[s]))
+    final[s] = {"count": freq, "tokens": tokes, "posts": posts[s]}
 
-        ##RKB SAYS THIS IS NOT NEEDED
-        #corpus[b]["fdist"] = fdist
-        
-    # FreqDist of the total BoW AND bigrams; trying to clean them up...
-    #### IF I MAKE this into a set, won't I lose the number of incidences of the thing?
-    bow_dist = nltk.FreqDist(total_bow)
+## need to figure out how to sort my FINAL dict by value of "count"
+sort_final = sorted(final.items(), key=lambda x: x[1]["count"],reverse=True)
+final = dict(sort_final)
 
-    ## this makes a collection, which can then be used for similarity processing
-    blogs_text_collection = nltk.text.TextCollection(corpus_tc)
+## this makes a collection, which can then be used for similarity processing
+blogs_text_collection = nltk.text.TextCollection(corpus_tc)
 
+
+## FOR EYEBALLING PURPS
     ## FROM RKB::::
     ## MAKE sorted version, sort by most_common ?
     ## find threshold for 'overly common' words (eyeball)
     ## find lower threshold (eyeball, around 2-3 incidence)
     ## everything in between are potential
+with open("eyeball_stems.txt", "w") as txt:
+    for stem in final.keys():
+        count = final[stem]["count"]
+        tokens = final[stem]["tokens"]
+        to_write = f"{stem}: {count} // {tokens} \n"
+        txt.write(to_write)
 
-    sorted_bow_dist = bow_dist.most_common()
+## 
 
 
-#-------------------------previous code--------------
+
+
+
+#-------------------------BIGRAMS?--------------
     #bigrams = nltk.bigrams(total_bow)
     #bigrams_fd = nltk.FreqDist(bigrams)
     #print(bigrams_fd.most_common(20))
-    #b_o_w = {"words": total_bow, "w_fd": bow_dist}
 
-    nlp_output = {"BoW": sorted_bow_dist}
 
-    #bigrams_fd.pprint()
-
-    # dumping it back into a disk json
+## dumping it back into a disk json >>> THIS NEEDS TO BECOME A PICKLE (or 2)
+        ## flag file as "rb" (binary)
 
 with open("blog_dump.json", "w") as write_file:
-    json.dump(nlp_output, write_file, indent=2)
+    json.dump(final, write_file, indent=2)
