@@ -105,7 +105,7 @@ final = dict(sort_final)
 blogs_text_collection = nltk.text.TextCollection(corpus_tc)
 
 
-## FOR EYEBALLING PURPS
+## FOR EYEBALLING ....
     ## FROM RKB::::
     ## MAKE sorted version, sort by most_common ?
     ## find threshold for 'overly common' words (eyeball)

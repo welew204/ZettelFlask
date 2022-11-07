@@ -1,5 +1,6 @@
 import json
 import datetime as dt
+import re
 
 finished_data = []
 ## ^^ this is a LIST of OBJECTs, with each having:
@@ -11,7 +12,7 @@ finished_data = []
 tfa_com_str = "TFA Community Agreement #"
 
 
-with open("/Users/williamhbelew/Hacking/ZetApp/ZettelApp/nltk_learning/IG_tfa_posts.json", "r") as ig_data:
+with open("/Users/williamhbelew/Hacking/ZetApp/ZettelApp/ZettelFlask/NLP/IG_tfa_posts.json", "r") as ig_data:
     ig = json.load(ig_data)    
     for p in ig:
         media = []
@@ -21,6 +22,7 @@ with open("/Users/williamhbelew/Hacking/ZetApp/ZettelApp/nltk_learning/IG_tfa_po
             for m in p["media"]:
                 media.append(m["uri"])
             content = p["title"]
+            content = re.sub("\B@\w+", "", content)
             post["content"] = content
             while len(content) > 0:
                 (first, hsh, after) = content.partition("#")
@@ -53,6 +55,7 @@ with open("/Users/williamhbelew/Hacking/ZetApp/ZettelApp/nltk_learning/IG_tfa_po
             if tfa_com_str in p["media"][0]["title"]:
                 continue
             content = p["media"][0]["title"]
+            content = re.sub("\B@\w+", "", content)
             post["content"] = content
             while len(content) > 0:
                 (first, hsh, after) = content.partition("#")
