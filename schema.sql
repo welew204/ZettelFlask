@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS author;
 DROP TABLE IF EXISTS post;
-DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS tpcnx;
+DROP TABLE IF EXISTS weights;
 
 CREATE TABLE author (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,16 +17,18 @@ CREATE TABLE post (
     FOREIGN KEY (author_id) REFERENCES author (id) 
 );
 
-CREATE TABLE tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tag TEXT UNIQUE NOT NULL,
-    count INTEGER,
-    weight INTEGER
-);
-
 CREATE TABLE tpcnx (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tag_id INTEGER NOT NULL,
     post_id INTEGER NOT NULL,
-    user_conf INTEGER
+    user_conf INTEGER,
+    FOREIGN KEY (tag_id) REFERENCES weights (id)
+);
+
+CREATE TABLE weights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag TEXT NOT NULL,
+    best_token TEXT NOT NULL,
+    count INTEGER,
+    idf REAL
 );

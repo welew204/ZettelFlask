@@ -7,7 +7,7 @@ import sys
 
 from bs4 import BeautifulSoup
 import bs4 as BS
-from sqlalchemy import null
+import ZettelFlask.nlp as nlp
 
 from werkzeug.exceptions import abort
 
@@ -54,6 +54,8 @@ def api_json():
         res = {"id": id, "title": title, "body_md": body_md, "author":author, "published": published}
 
         posts.append(res)
+    
+    g.posts = posts
 
     return jsonify({"posts": posts}), 200
 
@@ -140,22 +142,6 @@ def get_post(id):
 
     return post
 
-# this is currently not needed, since nothing is stored in html right now
-def just_text(html_file):
-    # takes out new lines
-    soup = html_file.replace('\n', ' ')
-
-    """ soup = unicodedata.normalize("NFKD", soup) """
-    # makes a BeautifulSoup object
-    soup = BS.BeautifulSoup(soup, 'html.parser')
-    # beautiful soup method that spits out just text
-    soup = soup.get_text()
-    # takes out bullet points (\xa0) and nbsp (\u00a0)
-    soup = soup.encode('ascii', 'ignore')
-    # get it back to being string (not a byte-string) 
-    soup = soup.decode()
-    return soup
-
 
 @bp.route('/update', methods=('POST',))
 def update():
@@ -225,29 +211,75 @@ def update():
 
     return jsonify({"posts": posts}), 200
 
-"""DON"T THINK this is needed:
-    posts = []
-    res = db.execute('SELECT * FROM post').fetchall()
-    for note in res:
-        id = note["id"]
-        title = note["title"]
-        body_html = note["body_formatted"]
-        body_raw = note["body_raw"]
-        published = note["published"]
-        res = {"id": id, "title": title, "body_html": body_html, "body_raw": body_raw, "published": published}
 
-        posts.append(res)
-    
-    return {"message": "Sucessfully POSTed!"}, 200"""
-
-@bp.route('/<int:id>/delete', methods=('POST',))
+@bp.route('/<id>/delete', methods=('POST',))
 def delete(id):
-    get_post(id)
-    db = get_db()
-    db.execute('DELETE FROM post WHERE id = ?', (id,))
-    db.commit()
+    if id[0] == 'u':
+        print(f"This note is not yet saved into the system...id = {id}", file=sys.stderr)
+        pass
+    else:
+        id = int(id)
+        get_post(id)
+        db = get_db()
+        db.execute('DELETE FROM post WHERE id = ?', (id,))
+        db.commit()
     return redirect(url_for('.api_json'))
 
 
+@bp.route('/weights', methods=('GET',))
+def weights():
+    if 'posts' not in g:
+        api_json()
+
+    data = g.posts
+
+    print(f"DATA len: {len(data)}\n -------------------------------", file=sys.stderr)
+
+    db = get_db()
+    curs = db.cursor()
+    
+    wtd_data, stem_ddict, basicVocabIdx, docIDF, all_stems = nlp.run_nlp(data)
+    
+    wts = {}
+
+    init = True
+    for p in wtd_data.keys():
+        post = wtd_data[p]
+
+        ## WHAT SHOULD BE THE FORMAT OF THE OUTGOING wts DICT? ie WHAT would be most useful in React?
+
+        curs.execute(f'ALTER TABLE weights ADD COLUMN {p} REAL')
+        db.commit()
+        print(f"Added column: {p}\n -------------------------------", file=sys.stderr)
+
+        wts[post['title']] = {}
+        for s in basicVocabIdx.keys():
+            
+            w = post['kwvec'][basicVocabIdx[s]]
+            
+            wts[post['title']][s] = w
+
+            ## ??refactor so that loop generates a tuple of tuples (fmt: (s, docIDF[s], stem_ddict[s][0], w))
+            ## ??that can be passed to executemany('INSERT...')
+            ## ??for NOT init==True, make tuple of tuples
+
+            #print(f"Column: {p}\nStem: {s}\nWeight: {w} -------------------------------", file=sys.stderr)
+            if init == True:
+                curs.execute(f'INSERT INTO weights (tag, IDF, best_token, {p}) VALUES (?,?,?,?)', (s, docIDF[s], stem_ddict[s][0], w))
+                db.commit()
+            else:
+                curs.execute(f'UPDATE weights SET {p} = ? WHERE tag="{s}"', (w,))
+                db.commit()
+              
+        init = False
+
+        ## after going through all kwvec for a given P, sort the passed wts so that MOST wtd are first, then pass back into 'wts'
+        p_wts_sorted = dict(sorted(wts[post['title']].items(), key=lambda k: k[1], reverse=True))
+        wts[post['title']] = p_wts_sorted
+    
+
+    
+    return jsonify({"weights": wts}), 200
+
 if __name__ == "__main__":
-    api_json()
+    weights()

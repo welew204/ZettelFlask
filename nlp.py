@@ -3,68 +3,74 @@ import json
 import numpy
 import math
 import nltk
-import parse # for just_text() function
+import ZettelFlask.parse as parse# for just_text() function
 import wordsegment
 
 from collections import defaultdict
 
-data_url ="/Users/williamhbelew/Hacking/ZetApp/ZettelApp/ig_TFA_dump.json" #update with url of json file
-out_url = "/Users/williamhbelew/Hacking/ZetApp/ZettelApp/ZettelFlask/NLP/IGdocsim.csv" #optional, req'd if output_to_csv = True
+data_url ="/Users/williamhbelew/Hacking/ZetApp/ZettelApp/ZettelFlask/parsedXML/parsedBlogs.json" #update with url of json file
+out_url = "" #optional, req'd if output_to_csv = True
 
-ig_data = True #update if data coming from IG
+ig_data = False #update if data coming from IG
 
 title_weight = 3
 hashtag_weight = 2
 lowerKWthresh = 1
 
-output_to_csv = True
+output_to_csv = False
 nsimPairs = 50 # how many similarities you wanna see
 
-## open // parse files (specify format, but use try...except blocks to poke for author, hashtags, media)
+## open // parse files (specify format)
 ## format: {"title": , --> string
 #        "content": ,  --> string
-#		"author": ,  --> string
-#		"hashtags": , --> list of strings
+#		**"author": ,  --> string
+#		*"hashtags": , --> list of strings
 #		"published": , --> string
-#		"media": } --> list of strings           
-def open_parse_json(data_url, ig_data=False):
-    with open(data_url, "r") as data:
-        posts = json.load(data)
-        psd = {}
-        if ig_data:
-            for i,p in enumerate(posts):
-                igidx = f"I{i:04d}"
-                published = p["timestamp"]
-                text = p["content"]
-                text = parse.just_text(text)
-                
-                htags = p["hashtags"]
-                media = p["uri"]
-                psd[igidx] = {
-                    "id": igidx,
-                    "text": text,
-                    "date": published,
-                    "hashtags": htags,
-                    "media": media
-                }
-        else:
-            for i,p in enumerate(posts):
-                bidx = f"B{i:04d}"
-                title = p["title"]
-                published = p["pubDate"]
-                published = datetime.strptime(published, "%a, %d %b %Y %H:%M:%S %z")
-                published = published.strftime("%Y-%m-%d")
-                text = p["formatted_content"]
-                text = parse.just_text(text)
-                
-                author = p["author"]
-                psd[bidx] = {
-                    "id": bidx,
-                    "title": title,
-                    "text": text,
-                    "date": published,
-                    "author": author
-                }
+#		*"media": } --> list of strings           
+#       
+#       ** only included if ig_data is FALSE
+#       * only included if ig_data is True
+
+### WRITE SEPERATE BLOCK TO HANDLE INCOMING parsedBlogs ("pubDate" to "published", "formatted_content" to "body_md")
+
+def open_parse(data, ig_data=False):
+    posts = data
+    psd = {}
+    if ig_data:
+        for i,p in enumerate(posts):
+            igidx = f"I{i:04d}"
+            published = p["timestamp"]
+            text = p["content"]
+            text = parse.just_text(text)
+            
+            htags = p["hashtags"]
+            media = p["uri"]
+            psd[igidx] = {
+                "id": igidx,
+                "text": text,
+                "date": published,
+                "hashtags": htags,
+                "media": media
+            }
+    else:
+        for i,p in enumerate(posts):
+            bidx = f"B{i:04d}"
+            title = p["title"]
+            published = p["published"]
+            ## these aren't needed now that data is piped in from g.posts
+            #published = datetime.strptime(published, "%a, %d %b %Y %H:%M:%S %z")
+            #published = published.strftime("%Y-%m-%d")
+            text = p["body_md"]
+            text = parse.just_text(text)
+            
+            author = p["author"]
+            psd[bidx] = {
+                "id": bidx,
+                "title": title,
+                "text": text,
+                "date": published,
+                "author": author
+            }
     return psd
 
 ## tokenize // fdist
@@ -131,7 +137,6 @@ def calc_idf(data, stem_ddict):
     return docIDF
 
 ## calc weights (TF-IDF)
-
 def calc_weights(data, basicVocabIdx, docIDF):
     basicVSet = set(list(basicVocabIdx.keys()))
     nkw = len(basicVSet)
@@ -183,22 +188,34 @@ def comp_similarity(data):
             postSims[ (p1, p2) ] = sim
     return postSims
 
+## function for running this script as module (just send in json w/ form shown above)...
+def run_nlp(data_from_g):
+    data = open_parse(data_from_g)
+    up_data1, stem_ddict, all_stems, basicVocabIdx = tok_fdist(data, ig_data=ig_data)
+    docIDF = calc_idf(up_data1, stem_ddict)
+    up_data_f = calc_weights(up_data1,basicVocabIdx,docIDF)
+    return up_data_f, stem_ddict, basicVocabIdx, docIDF, all_stems
 
 ## out as csv OR dict (depending on use-case)
 
 if __name__ == "__main__":
-    data_in = data_url
-    data = open_parse_json(data_in, ig_data=ig_data)
-    up_data1, stem_ddict, all_stems, basicVocabIdx = tok_fdist(data, ig_data=ig_data)
+# this will run this file from URL provided at top of script
+    data = open(data_url, "r")
+    data_in = json.load(data)
+    data_dict = open_parse(data_in, ig_data=ig_data)
+    data.close()
+
+    up_data1, stem_ddict, all_stems, basicVocabIdx = tok_fdist(data_dict, ig_data=ig_data)
     docIDF = calc_idf(up_data1, stem_ddict)
     up_data_f = calc_weights(up_data1,basicVocabIdx,docIDF)
 
     postSims = comp_similarity(up_data_f)
     sorted_postSim = sorted(postSims.keys(), key=lambda k: postSims[k], reverse=True)
     
-    #to_print=list(postSims.keys())
-    for i in sorted_postSim[:10]:
-        print(i)
+    to_print=list(up_data_f.keys())
+    for i in to_print[9:10]:
+        post = up_data_f[i]
+        print(post['kwvec'])
 
     if output_to_csv:
         with open(out_url, "w") as outs:
@@ -207,5 +224,6 @@ if __name__ == "__main__":
                 p1, p2 = s
                 sim = postSims[s]
                 outs.write(f"{p1},{p2},{sim}\n")
+    
 
     
