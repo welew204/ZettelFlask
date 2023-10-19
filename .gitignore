@@ -1,0 +1,9 @@
+
+#specific data docs to ignore
+blog_dump.json
+eyeball_stems.txt
+Squarespace-Wordpress*
+parsedBlogs.json
+
+#generic ish to ignore
+**/__pycache__

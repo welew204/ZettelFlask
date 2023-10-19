@@ -29,9 +29,10 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    @app.route("/hello")
-    def hello():
+    @app.route("/health")
+    def health():
         return "<h1>Zippidy Do Dah!!</h1>"
+        #what else could I have RUN here that exposes some good stuff??
 
     from . import db
     db.init_app(app)

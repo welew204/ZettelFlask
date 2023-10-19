@@ -1,5 +1,3 @@
-from cgitb import reset
-import imp
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, url_for, jsonify
 )
@@ -17,16 +15,13 @@ bp = Blueprint('notes', __name__)
 
 @bp.route('/')
 def index():
-    print(f"Got this far (to {index})", file=sys.stderr)
+    #print(f"Got this far (to {index})", file=sys.stderr)
     db=get_db()
     posts = db.execute(
         'SELECT * FROM post JOIN author ON post.author_id = author.id'
     ).fetchall()
 
     #print(f"length of DB is currently {len(posts)}", flush=True)
-
-    # need to fix how the RENDER is happening!    
-    # render_template('blog/index.html', posts=posts)
 
     # need to put this into a json file? make it available on the filespacE?!
     return 'Done', 201
@@ -59,35 +54,6 @@ def api_json():
 
     return jsonify({"posts": posts}), 200
 
-""" commenting out the below (from the Flaskr tutorial)
-
-@bp.route('/create', methods=('GET', 'POST'))
-def create():
-    if request.method == 'POST':
-        title = request.form['title']
-        body = request.form['body']
-        error = None
-        
-        if not title:
-            error  = 'Title is required'
-
-        if error is not None:
-            flash(error)
-        else:
-            db = get_db()
-            db.execute(
-                'INSERT INTO post (title, body, author_id)'
-                ' VALUES (?, ?, ?)',
-                (title, body, g.author['id'])
-            )
-            db.commit()
-            return redirect(url_for('blog.index'))
-
-    #return render_template(?*?*?*?*?)
-    return 'Post created!', 201
-
-... bc I'm trying to refactor create() with JSON inputs (see below)"""
-
 @bp.route('/create', methods=('POST',))
 def create():
     req_data = request.get_json()
@@ -97,8 +63,6 @@ def create():
         body = post['body']
         author = post['author']
         published = post['published']
-
-
 
     error = None
     
@@ -177,7 +141,7 @@ def update():
         #print(f"DB ID: {result[0]} V. Note ID: {id}", file=sys.stderr)
 
         if result != None:
-            print(f"UPDATING)", file=sys.stderr)
+            #print(f"UPDATING)", file=sys.stderr)
             db.execute(
                 'UPDATE post SET title = ?, body_formatted = ? WHERE id = ?',
                 (title, body, id)

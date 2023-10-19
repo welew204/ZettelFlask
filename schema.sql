@@ -22,10 +22,12 @@ CREATE TABLE tpcnx (
     tag_id INTEGER NOT NULL,
     post_id INTEGER NOT NULL,
     user_conf INTEGER,
-    FOREIGN KEY (tag_id) REFERENCES weights (id)
+    weight REAL,
+    FOREIGN KEY (tag_id) REFERENCES tags (id),
+    FOREIGN KEY (post_id) REFERENCES post (id)
 );
 
-CREATE TABLE weights (
+CREATE TABLE tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tag TEXT NOT NULL,
     best_token TEXT NOT NULL,
